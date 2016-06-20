@@ -1,0 +1,9 @@
+---
+
+devices:
+  - /dev/disk/by-id/virtio-OSD1_DATA
+  - /dev/disk/by-id/virtio-OSD2_DATA
+
+raw_journal_devices:
+  - /dev/disk/by-id/virtio-OSD1_JOURNAL
+  - /dev/disk/by-id/virtio-OSD1_JOURNAL

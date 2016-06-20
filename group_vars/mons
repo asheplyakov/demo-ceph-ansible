@@ -1,0 +1,7 @@
+---
+
+fsid: "{{ cluster_uuid.stdout }}"
+monitor_secret: "{{ monitor_keyring.stdout }}"
+cephx: true
+
+pool_default_pg_num: 128

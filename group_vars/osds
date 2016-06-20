@@ -1,0 +1,10 @@
+---
+
+crush_location: false
+osd_crush_location: "'root={{ ceph_crush_root }} rack={{ ceph_crush_rack }} host={{ ansible_hostname }}'"
+
+fsid: "{{ cluster_uuid.stdout }}"
+cephx: true
+
+osd_auto_discovery: false
+raw_multi_journal: true
