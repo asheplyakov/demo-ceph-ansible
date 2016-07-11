@@ -25,6 +25,10 @@ Preparation
     sudo apt-get update
     sudo apt-get install -y ansible
 
+* Clone this repository::
+
+    git clone --recursive https://github.com/asheplyakov/demo-ceph-ansible.git
+
 
 Deployment
 ==========
@@ -33,6 +37,36 @@ Cluster configuration
 ---------------------
 
 Mandatory and important settings:
+
+* ``host_vars/FQDN``
+
+  - OSD data drives::
+
+      devices:
+        - /dev/disk/by-id/ata-foo
+        - /dev/disk/by-id/ata-bar
+
+    Note: drives are specified on a per host basis so it's possilbe to use
+    the stable identifiers instead of traditional ones (like */dev/sda*).
+    In general the traditional identifiers can
+      - change across reboots (it used to be */dev/sda* before the reboot,
+        but now it's */dev/sdb*)
+      - vary between nodes even if the hardware is the same (*/dev/sda*
+        is an SSD on *osd1*, but it's a HDD on *osd2*)
+    Stable identifers help to avoid surprises, however they are unique
+    (depend on the drive serial number, model name, etc) and should be
+    specified on a per host basis.
+
+  - OSD journal drive::
+
+     raw_journal_devices:
+       - /dev/disk/by-id/ata-blahSSD
+       - /dev/disk/by-id/ata-blahSSD
+
+    Note: the same drive specified twice (once per an OSD), it will be partitioned
+    so both OSDs defined above can use it as a journal. Thus it's possible to use
+    a single SSD with several rotating drives.
+
 
 * ``group_vars/all``
 
@@ -69,6 +103,12 @@ Mandatory and important settings:
   - tell ceph-ansible to *not* touch APT configuration::
 
       ceph_origin: 'distro'
+
+  - ceph is picky about nodes' system time being out of sync. run *ntpdate*
+    using the specified NTP server::
+
+      ntp_server: 10.253.0.1
+      sync_time: true
 
   - radosgw and ``civetweb`` settings: ``radosgw_civetweb_bind_ip`` *must*
     be specified to avoid ansible failure::
@@ -144,17 +184,18 @@ Preflight checks
 Deploy it
 ---------
 
- ::
-    ansible-playbook -i hosts site.yml.sample
+**WARNING**: this wipes out the data from the OSD drives. Before running this
+command please make sure the inventory file (*hosts*) does **NOT** point to
+your production cluster::
+
+  ansible-playbook -i hosts site.yml
 
 
 Benchmark
 ---------
 
-Create 32G rbd image named ``test.img``, map it, create ext4 filesystem,
+Create 32G rbd image named ``test${hostname}.img``, map it, create ext4 filesystem,
 mount it and write ``fio`` randwrite benchmark::
 
-  ansible -m apt -i hosts clients -a "name=fio state=present"
-  ansible -m copy -i hosts clients -a "src=rbd-test.sh dest=/opt/rbd-test.sh mode=0755"
   ansible -m shell -i hosts clients -a "/opt/rbd-test.sh"
 

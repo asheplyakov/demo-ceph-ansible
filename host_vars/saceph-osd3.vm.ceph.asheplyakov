@@ -1,9 +1,9 @@
 ---
 
 devices:
-  - /dev/disk/by-id/virtio-OSD5_DATA
-  - /dev/disk/by-id/virtio-OSD6_DATA
+  - /dev/disk/by-id/virtio-saceph-osd3_0_DATA
+  - /dev/disk/by-id/virtio-saceph-osd3_1_DATA
 
 raw_journal_devices:
-  - /dev/disk/by-id/virtio-OSD3_JOURNAL
-  - /dev/disk/by-id/virtio-OSD3_JOURNAL
+  - /dev/disk/by-id/virtio-saceph-osd3_JOURNAL
+  - /dev/disk/by-id/virtio-saceph-osd3_JOURNAL

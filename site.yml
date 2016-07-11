@@ -1,33 +1,28 @@
 ---
 # Defines deployment design and assigns role to server groups
 
+- hosts: all
+  become: True
+  pre_tasks:
+  - include: ./tasks/timesync.yml
+    when:
+    - sync_time
+    - ntp_server is defined
+
 - hosts: mons
   become: True
   roles:
   - ceph-mon
   post_tasks:
-  - name: Get CRUSH tunables
-    shell: ceph osd crush show-tunables
-    run_once: True
-    register: raw_prev_crush_tunables
-  - set_fact:
-      prev_crush_tunables: "{{ raw_prev_crush_tunables.stdout|from_json }}"
-  - name: Fetch current CRUSH map
-    shell: ceph osd getcrushmap -o crush.map
-    run_once: True
-  - name: Adjust CRUSH tunables in a local copy of CRUSH map
-    shell: crushtool -i crush.map  --set-{{ item.key }} {{ item.value }} -o crush.map
-    when: prev_crush_tunables[item.key] != item.value
-    with_dict: crush_tunables
-    run_once: True
-  - name: Set the new CRUSH map
-    shell: ceph osd setcrushmap -i crush.map
-    run_once: True
+  - include: ./tasks/crushtunables.yml
 
 - hosts: osds
   become: True
   roles:
   - ceph-osd
+  pre_tasks:
+  - include: ./tasks/zapdisks.yml
+    when: zap_block_devs
 
 - hosts: rgws
   become: True
@@ -40,8 +35,6 @@
   - ceph-client
   post_tasks:
   - name: Install fio utility
-    apt: name=fio state=present
-    when:
-      - ansible_os_family == 'Debian'
+    package: name=fio state=present
   - name: Copy benchmark/test script
     copy: src=rbd-test.sh dest=/usr/local/sbin/rbd-test.sh owner=root group=root mode=0755

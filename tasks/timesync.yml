@@ -1,0 +1,15 @@
+---
+
+- name: install ntp package
+  package: name=ntp state=present
+- name: install ntpdate package
+  package: name=ntpdate state=present
+- name: stop ntp service
+  service: name=ntp state=stopped
+- name: manually sync time with ntpdate
+  shell: ntpdate -v {{ ntp_server }}
+- name: set time sync server
+  lineinfile: dest=/etc/ntp.conf regexp="^server" line="server {{ ntp_server }}"
+- name: start ntp server
+  service: name=ntp state=started
+

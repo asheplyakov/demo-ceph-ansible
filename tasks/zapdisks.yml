@@ -1,0 +1,20 @@
+---
+
+# BIG RED WARNING! THIS WIPES OUT OSD DATA AND JOURNAL PARTITIONS WITHOUT ANY CONFIRMATION!
+# Wipe out any previous ceph data and journal partitions.
+# By convention virtual hard drives holding data have serials ending with _DATA,
+# and the journal virtual hard drives have serials ending with _JOURNAL.
+# As a result udev generates symlinks like /dev/disk/by-id/virtio-*_DATA for
+# data drives and /dev/disk/by-id/virtio-*_JOURNAL for journals, respectively
+
+- name: install parted package
+  package: name=parted state=present
+- name: zap first 32 MB of data and journal drives
+  shell: dd if=/dev/zero of={{ item }} bs=1M count=32 conv=fsync oflag=direct
+  with_items: "{{ devices | union(raw_journal_devices) | unique }}"
+- name: create empty GPT on data and journal drives
+  shell: parted --script "{{ item }}" mklabel gpt
+  with_items: "{{ devices | union(raw_journal_devices) | unique }}"
+- name: reread partition tables of data and journal drives
+  shell: blockdev --rereadpt "{{ item }}"
+  with_items: "{{ devices | union(raw_journal_devices) | unique }}"

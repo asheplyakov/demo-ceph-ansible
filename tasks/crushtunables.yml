@@ -1,0 +1,20 @@
+---
+
+- name: Get CRUSH tunables
+  shell: ceph osd crush show-tunables
+  run_once: True
+  register: raw_prev_crush_tunables
+- set_fact:
+    prev_crush_tunables: "{{ raw_prev_crush_tunables.stdout|from_json }}"
+- name: Fetch current CRUSH map
+  shell: ceph osd getcrushmap -o crush.map
+  run_once: True
+- name: Adjust CRUSH tunables in a local copy of CRUSH map
+  shell: crushtool -i crush.map  --set-{{ item.key }} {{ item.value }} -o crush.map
+  when: prev_crush_tunables[item.key] != item.value
+  with_dict: crush_tunables
+  run_once: True
+- name: Set the new CRUSH map
+  shell: ceph osd setcrushmap -i crush.map
+  run_once: True
+
