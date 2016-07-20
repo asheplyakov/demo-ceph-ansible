@@ -1,0 +1,14 @@
+---
+
+- name: get my local username
+  local_action: command whoami
+  register: local_username
+  sudo: False
+
+- name: create ceph backup directory
+  local_action: >
+    file
+    path={{ backup_dir }}
+    state=directory
+    owner={{ local_username.stdout }}
+    mode=0750

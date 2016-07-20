@@ -1,0 +1,49 @@
+---
+
+- name: check the monitor is in quorum
+  command: ceph -s --format json
+  register: ceph_health_raw
+  until: inventory_hostname_short in (ceph_health_raw.stdout|from_json)['quorum_names']
+  retries: 10
+  delay: 5
+
+- name: compress the monitor store as much as possible
+  command: ceph tell mon.{{ inventory_hostname_short }} compact
+- name: restart  the monitor after compaction
+  service: >
+    name=ceph-mon
+    state=restarted
+    args=id={{ inventory_hostname_short }}
+- name: wait for the monitor to be up again
+  local_action: >
+    wait_for
+    host={{ inventory_hostname }}
+    port=6789
+    timeout=10
+- name: stop the monitor
+  service: >
+    name=ceph-mon
+    state=stopped
+    args=id={{ inventory_hostname_short }}
+- name: wait for the monitor to be down
+  local_action: >
+    wait_for
+    host={{ inventory_hostname }}
+    port=6789
+    timeout=10
+    state=stopped
+- name: archive monitor stores
+  shell: >
+    tar -cpvzf {{ remote_backup_dir }}/{{ backup_tarball }} --one-file-system /var/lib/ceph /etc/ceph
+    creates={{ remote_backup_dir }}/{{ backup_tarball }}
+- name: temporarily start the monitor
+  service: >
+    name=ceph-mon
+    state=started
+    args=id={{ inventory_hostname_short }}
+- name: copy the monitor store
+  fetch: >
+    src={{ remote_backup_dir }}/{{ backup_tarball }}
+    dest={{ backup_dir }}/{{ backup_tarball }}
+    flat=yes
+

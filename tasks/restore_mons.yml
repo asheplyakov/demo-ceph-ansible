@@ -1,0 +1,29 @@
+---
+
+- name: copy and unarchive the monitor configs
+  unarchive: >
+    src={{ backup_dir }}/{{ backup_tarball }}
+    dest=/
+    copy=yes
+    creates=/etc/ceph/ceph.conf
+  tags: restore_mons
+- name: start monitor
+  service: >
+    name=ceph-mon
+    state=started 
+    args=id={{ inventory_hostname_short }}
+  tags: restore_mons
+- name: wait for monitor to start up
+  local_action: >
+    wait_for
+    host={{ inventory_hostname }}
+    port=6789
+    timeout=60
+  tags: restore_mons
+- name: wait for monitor to join the quorum
+  shell: ceph -s --format json
+  register: ceph_health_raw
+  until: inventory_hostname_short in (ceph_health_raw.stdout|from_json)['quorum_names']
+  retries: 5
+  delay: 10
+  tags: restore_mons

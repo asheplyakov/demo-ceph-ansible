@@ -1,0 +1,86 @@
+---
+
+# Backup ceph configs from an OSD node, and stop OSDs
+
+# Check if all PGs are in the `active+clean' state.
+# In Python this check is a clean and simple:
+#
+# all(pg['state'] == 'active+clean' for pg in json.loads(pg_dump_pre)['pg_stats'])
+#
+# However ansible expressions are not Python, they are jinja2 templates and
+# a naive translation
+#
+# until: all(pg['state'] == 'active+clean' for pg in (pg_dump_pre|from_json)['pg_stats'])
+#
+# is not a valid template - `for' is a jinja2 keyword here, not a pythonic one.
+# With jinja2 >= 2.8 one could write the condition as
+#
+# (pg_dump_pre.stdout|from_json)['pg_stats']|rejectattr('state', 'equalto', 'active+clean')|count == 0
+#
+# however jinja2 2.7 (which is shipped with Ubuntu 14.04) does not provide
+# the 'equalto' filter. In order to solve the problem I abuse the `groupby'
+# filters to rearrange the pg_stats as a list of dicts (sort of) with keys
+# being `grouper' and `list'
+#
+# (pg_dump_pre.stdout|from_json)['pg_stats']|groupby('state')
+#
+# [
+#  {'grouper': 'active+clean', 'list': [{'pgid': 'foo', ... }, ...]},
+#  {'grouper': 'active+degraded', [{'pgid': 'bar', ...}, ...]},
+# ]
+#
+# Let's extract all groupers (states) and join them. The result will be
+# 'active+clean' if and only if all states are 'active+clean'. For instance,
+# if there some PGs in 'active+degraded' state, and some in the 'active+clean'
+# state, the result of join might be 'active+degradedactive+clean' or
+# 'active+cleanactive+degraded', neither of thease is equal to 'active+clean'
+
+- name: check if PGs are active+clean
+  command: ceph pg dump --format=json
+  register: pg_dump_pre
+  delegate_to: "{{ item }}"
+  with_items: groups.mons[0]
+  until: (pg_dump_pre.stdout|from_json)['pg_stats']|groupby('state')|map(attribute='grouper')|join == 'active+clean'
+  retries: 5
+  delay: 3
+  tags: backup_osds
+
+- name: archive OSD configs
+  shell: >
+    tar -cpzvf {{ remote_backup_dir }}/{{ backup_tarball }} --one-file-system /var/lib/ceph /etc/ceph
+    creates={{ remote_backup_dir }}/{{ backup_tarball }}
+  tags: backup_osds
+
+- name: copy OSDs configs
+  fetch: >
+    src={{ remote_backup_dir }}/{{ backup_tarball }}
+    dest={{ backup_dir }}/
+    flat=yes
+  tags: backup_osds
+
+- name: set the noout flag
+  command: ceph osd set noout
+  delegate_to: "{{ item }}"
+  with_items: groups.mons[0]
+  tags: stop_osds
+
+- name: collect OSD ports
+  shell:  netstat -tlpn | sed -rne 's/^tcp\s+(0\s+){2}[0-9.]+[:]([0-9]+).*ceph-osd\s*$/\2/p'
+  register: osd_ports
+  tags: stop_osds
+
+- name: stop OSDs
+  service: name=ceph-osd-all state=stopped
+  tags: stop_osds
+
+- name: wait for the OSDs to be down
+  local_action: >
+    wait_for
+    host={{ inventory_hostname }}
+    port={{ item }}
+    timeout=30
+    state=stopped
+  with_items:
+    - "{{ osd_ports.stdout_lines }}"
+  tags: stop_osds
+

@@ -2,14 +2,20 @@
 
 - name: install ntp package
   package: name=ntp state=present
+  tags: timesync
 - name: install ntpdate package
   package: name=ntpdate state=present
+  tags: timesync
 - name: stop ntp service
   service: name=ntp state=stopped
+  tags: timesync
 - name: manually sync time with ntpdate
   shell: ntpdate -v {{ ntp_server }}
+  tags: timesync
 - name: set time sync server
   lineinfile: dest=/etc/ntp.conf regexp="^server" line="server {{ ntp_server }}"
+  tags: timesync
 - name: start ntp server
   service: name=ntp state=started
+  tags: timesync
 

@@ -1,0 +1,35 @@
+---
+
+# image based OS live upgrade
+#
+# - backup ceph configs
+# - stop the VM
+# - provision new cloud image, start the VM
+# - (re)configure the VM and install ceph packages (cloud-init)
+# - restore ceph configs and restart services
+#
+# Note: the upgrade does NOT interrupt any clients
+
+- hosts: mons
+  serial: 1
+  sudo: True
+
+  pre_tasks:
+    - include: ./tasks/create_backup_dir.yml
+
+  tasks:
+    - include: ./tasks/backup_mons.yml
+    - include: ./tasks/provision_vm.yml
+    - include: ./tasks/timesync.yml
+    - include: ./tasks/restore_mons.yml
+
+- hosts: osds
+  serial: 1
+  sudo: True
+  pre_tasks:
+    - include: ./tasks/create_backup_dir.yml
+  tasks:
+    - include: ./tasks/backup_osds.yml
+    - include: ./tasks/provision_vm.yml
+    - include: ./tasks/timesync.yml
+    - include: ./tasks/restore_osds.yml

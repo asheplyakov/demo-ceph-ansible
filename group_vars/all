@@ -38,3 +38,17 @@ ntp_server: 10.253.0.1
 sync_time: true
 
 ansible_user: root
+
+# VM (re)provisioning preserving ceph configs
+backup_dir: /tmp/ceph.bak
+remote_backup_dir: /var/backups
+backup_tarball: "{{ inventory_hostname_short }}.tgz"
+
+# OS installation
+rootfs_image: /srv/data/Public/img/20160713/trusty-server-cloudimg-amd64-disk1.rootfs
+os_vdisk: "/dev/mapper/as--ubuntu--vg-{{ inventory_hostname_short | regex_replace('-', '--') }}--os"
+rootfs_offset: 1048576
+vdisk_root_partition: "{{ os_vdisk}}1"
+
+cloudinit_callback_addr: "10.253.0.1:8080"
+cloudinit_callback_server: "{{ playbook_dir }}/vmprovisioner/cloudinit_callback.py"

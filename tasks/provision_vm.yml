@@ -1,0 +1,99 @@
+---
+
+# Install the operating system in the VM using the specified root filesystem image
+# Assumptions:
+# * the image has cloud-init, ssh server, and python installed
+# * all VMs run on a local hypervisor
+# * the virtual drives are backed by a (thinly provisioned) logical volumes
+# * the logical volume where the OS is installed to is named after the VM
+#   name with a suffix '-os' (only for backup snapshots)
+# Dependencies:
+# * libvirt-bin (virsh)
+# * e2fsprogs (e2image, resize2fs, e2fsck, tune2fs)
+# * lvm2 (lvcreate)
+# * multipath-tools (kpartx)
+
+- name: shut down VM
+  local_action: >
+    command virsh shutdown {{ inventory_hostname_short }}
+  sudo: False
+  tags: provision
+
+- name: wait for VM to be down
+  local_action: >
+    shell virsh domstate {{ inventory_hostname_short }}
+  register: result
+  until: result.stdout == 'shut off'
+  delay: 5
+  retries: 10
+  sudo: False
+  tags: provision
+
+- name: create a backup snapshot
+  local_action: >
+    shell lvcreate -s -n {{ inventory_hostname_short }}-os_`date +%Y%m%d%H%M` {{ os_vdisk }} 
+  tags: provision
+
+- name: fixup VM vdisk ownership
+  local_action: >
+    command chown {{ local_username.stdout }} {{ os_vdisk }}
+  tags: provision
+
+- name: provision VM with a new rootfs
+  local_action: >
+    command e2image -arO {{ rootfs_offset }} -p {{ rootfs_image }} {{ os_vdisk }}
+  sudo: False
+  tags: provision
+
+- name: activate virtual drive LV
+  local_action: command kpartx -a {{ os_vdisk }}
+  tags: provision
+
+- name: fixup VM root partition ownership
+  local_action: >
+    file
+    path={{ os_vdisk }}1
+    owner={{ local_username.stdout }}
+
+- name: turn off ext4 journal
+  local_action: command tune2fs -O ^has_journal {{ os_vdisk }}1
+  sudo: False
+  tags: provision
+
+- name: run filesystem consistency check
+  local_action: command e2fsck -fp {{ os_vdisk }}1
+  sudo: False
+  tags: provision
+
+- name: resize the VM root filesystem
+  local_action: command resize2fs -p {{ os_vdisk }}1
+  sudo: False
+  tags: provision
+
+- name: deactivate virtual drive LV
+  local_action: command kpartx -d {{ os_vdisk }}
+  tags: provision
+
+- name: start VM
+  local_action: >
+    command virsh start {{ inventory_hostname_short }}
+  sudo: False
+  tags: provision
+
+- name: wait for VM to boot up and update its ssh key
+  local_action: >
+    command {{ cloudinit_callback_server }} -l {{ cloudinit_callback_addr }} {{ inventory_hostname_short }}
+  sudo: False
+  tags: provision
+
+- name: wait for VM to boot up after configuration
+  local_action: >
+    wait_for
+    host={{ inventory_hostname }}
+    port=22
+    timeout=120
+  tags: provision
+
+- name: wait a bit more to be sure that the server is ready
+  pause: seconds=60
+  tags: provision
