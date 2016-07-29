@@ -1,6 +1,7 @@
-[submodule "ceph-ansible"]
-	path = ceph-ansible
-	url = https://github.com/ceph/ceph-ansible.git
 [submodule "vmprovisioner"]
 	path = vmprovisioner
 	url = https://github.com/asheplyakov/sa-ceph-vms
+[submodule "ceph-ansible"]
+	path = ceph-ansible
+	url = https://github.com/asheplyakov/ceph-ansible.git
+	branch = secure-cluster-913
