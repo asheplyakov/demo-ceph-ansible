@@ -1,0 +1,52 @@
+---
+
+- name: make sure python-apt is installed
+  package: >
+    name=python-apt
+    state=present
+
+- name: make pinning rules for the custom packages
+  template: >
+    src=./templates/ceph.pref.j2
+    dest=/etc/apt/preferences.d/ceph.pref
+    owner=root
+    group=root
+    mode=0644
+
+- name: enable untrusted repositories
+  template: >
+    src=./templates/enable_untrusted_repos.j2
+    dest=/etc/apt/apt.conf.d/90_enable_untrusted_repos
+    owner=root
+    group=root
+    mode=0644
+  when: "{{ apt_enable_untrusted|default(False)|bool }}"
+
+- name: disable untrusted repositories
+  file: >
+    path=/etc/apt/apt.conf.d/90_enable_untrusted_repos
+    state=absent
+  when: "{{ not(apt_enable_untrusted|default(False)|bool) }}"
+
+- name: check if a proxy is required to connect to Internet
+  shell: grep -r /etc/apt/apt.conf.d -h -i -e 'Acquire::http::Proxy' | sed -rne 's/^[^"]+"([^"]+).*$/\1/p' | sort -u
+  register: apt_http_proxy
+  changed_when: false
+  failed_when: false
+  when: "{{ not(apt_enable_untrusted|default(False)|bool) }}"
+
+- name: import custom repo keyring
+  apt_key: >
+    id={{ ceph_apt_repo.gpg_keyid }}
+    keyserver={{ gpg_keyserver }}
+    keyring=/etc/apt/trusted.gpg.d/ceph.gpg
+  environment:
+    http_proxy: "{{ apt_http_proxy.stdout_lines[0] }}"
+  when: "{{ not(apt_enable_untrusted|default(False)|bool) }}"
+
+- name: add the repo with custom packages
+  apt_repository: >
+    repo="{{ ceph_apt_repo.url }}"
+    filename=ceph.list
+    state=present
+    update_cache=yes

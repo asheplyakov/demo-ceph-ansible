@@ -26,6 +26,16 @@ crush_tunables:
   chooseleaf_vary_r: 0
 
 ceph_origin: 'distro' # don't add any APT repos, use the exiting ones
+ceph_release: 'jewel'
+
+# apt_enable_untrusted: false
+gpg_keyserver: 'keyserver.ubuntu.com'
+
+ceph_apt_repo:
+  url: "deb http://asheplyakov.srt.mirantis.net/Public/repos/ceph {{ ceph_release }}-{{ os_release }} main"
+  label: "sa-{{ ceph_release }}-{{ os_release }}"
+  gpg_keyid: 69514C18 # A254F5F0
+  priority: 1050
 
 max_open_files: 131072
 

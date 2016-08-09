@@ -4,6 +4,7 @@
 - hosts: all
   become: True
   pre_tasks:
+  - include: ./tasks/aptrepos.yml
   - include: ./tasks/timesync.yml
     when:
     - sync_time
