@@ -1,0 +1,16 @@
+---
+
+- name: install fio utility
+  package: name=fio state=present
+
+- name: copy benchmark/test script
+  copy: >
+    src=rbd-test.sh
+    dest=/usr/local/sbin/rbd-test.sh
+    owner=root
+    group=root
+    mode=0755
+
+- name: run benchmark
+  command: /usr/local/sbin/rbd-test.sh
+  when: "{{ post_deploy_benchmark|default(False)|bool }}"

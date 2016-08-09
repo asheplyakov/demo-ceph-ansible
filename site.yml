@@ -35,7 +35,4 @@
   roles:
   - ceph-client
   post_tasks:
-  - name: Install fio utility
-    package: name=fio state=present
-  - name: Copy benchmark/test script
-    copy: src=rbd-test.sh dest=/usr/local/sbin/rbd-test.sh owner=root group=root mode=0755
+  - include: ./tasks/benchmark.yml
