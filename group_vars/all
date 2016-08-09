@@ -12,9 +12,9 @@ pool_default_min_size: 2
 pool_default_pg_num: 128
 pool_default_pgp_num: 128
 
-monitor_interface: eth0
+monitor_interface: eth1
 public_network: 10.253.0.0/24
-#cluster_network: "{{ public_network }}"
+cluster_network: 10.250.0.0/24
 
 # be compatible with in-kernel rbd client included in Linux 3.13.x
 ceph_conf_overrides:
@@ -47,7 +47,7 @@ radosgw_civetweb_bind_ip: 0.0.0.0
 ntp_server: 10.253.0.1
 sync_time: true
 
-ansible_user: root
+# ansible_user: ubuntu
 
 # VM (re)provisioning preserving ceph configs
 backup_dir: /tmp/ceph.bak

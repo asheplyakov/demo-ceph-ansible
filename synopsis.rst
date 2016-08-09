@@ -4,21 +4,26 @@ Preliminaries
 Lab description
 ---------------
 
-* (virtual) hardware: a handful of libvirt/kvm VMs:
+* (virtual) hardware: libvirt/kvm VMs managed by MAAS_ (version 1.9):
   - 3 OSD nodes having 3 (virtual) hard drives per a node
   - 3 monitor nodes
   - 1 radosgw node
   - 1 client node
 * software: Ubuntu 14.04, ceph 10.2.1 (jewel), `self built packages`_
 * ansible version: 2.1.0 from *ppa:ansible/ansible*
+* (virtual) networks:
+  - ``client_net`` network, 10.253.0.0/24, client-cluster traffic goes here
+  - ``cluster_net`` network, 10.250.0.0/24, intra-cluster traffic goes here
+  - ``pxe_net`` network, 10.40.0.0/24, provisioning (MAAS_) and deployment (ssh) traffic
+  - ``10.40.0.2`` runs the MAAS_ server
 
 .. _self built packages: http://asheplyakov.srt.mirantis.net/Public/repos/ceph
 .. _ceph-ansible: http://github.com/ceph/ceph-ansible
+.. _MAAS: https://maas.ubuntu.com/docs1.9/index.html
 
 Preparation
 -----------
 
-* Setup 8 VMs running Ubuntu 14.04 (cloud image)
 * Install ansible on the host::
 
     sudo apt-add-repository ppa:ansible/ansible
@@ -29,6 +34,41 @@ Preparation
 
     git clone --recursive https://github.com/asheplyakov/demo-ceph-ansible.git
 
+* Define 8 VMs and corresponding virtual drives, networks, etc
+
+* Add VMs to MAAS, use the ``maas_tools/match_maas_libvirt.py`` helper
+  script to tell MAAS how to power on/off VMs
+
+* Comission the nodes
+
+* Tag the nodes to set their roles:
+
+  - mark monitor nodes with ``ansible_mons`` tag
+  - mark OSD nodes with ``ansible_osds`` tag
+  - mark radosgw nodes with ``ansible_rgws`` tag
+  - mark the client nodes with ``ansible_clients`` tag
+
+  Manual tagging is boring, use ``maas_tools/tag_osds.py`` script to tag
+  all nodes having >=2 hard drives as OSDs (and tag other nodes as
+  ``clients``). After that one can tag monitors (and radosgw) nodes
+  manually (usually there are only a handful of such nodes).
+
+
+* Tag the storage devices:
+
+  - mark OSD data drives with ``ansible_osd_data`` tag
+  - mark OSD journal drives with  ``ansible_osd_journal`` tag
+
+* Configure the nodes' ``eth1`` and ``eth2`` interfaces to obtain
+  the IP address via dhcp. ``maas_tools/tag_osds.py`` automates this too.
+
+* Install Ubuntu 14.04 on those VMs with MAAS
+
+* Fetch the nodes' SSH keys::
+
+    ./maas_inventory.py --ssh-keys
+
+  This step is crucial for ansible to be able to connect to the nodes
 
 Deployment
 ==========
@@ -38,16 +78,11 @@ Cluster configuration
 
 Mandatory and important settings:
 
-* ``host_vars/FQDN``
+* OSD data and journal devices
 
-  - OSD data drives::
-
-      devices:
-        - /dev/disk/by-id/ata-foo
-        - /dev/disk/by-id/ata-bar
-
-    Note: drives are specified on a per host basis so it's possilbe to use
-    the stable identifiers instead of traditional ones (like */dev/sda*).
+  - The inventory script sets the OSD data and journal drives on a per host basis
+    using stable identifiers (udev generated synlinks in ``/dev/disk/by-id``)
+    instead of the traditional ones (like */dev/sda*).
     In general the traditional identifiers can
       - change across reboots (it used to be */dev/sda* before the reboot,
         but now it's */dev/sdb*)
@@ -57,7 +92,12 @@ Mandatory and important settings:
     (depend on the drive serial number, model name, etc) and should be
     specified on a per host basis.
 
-  - OSD journal drive::
+  - one can override inventory script (or skip tagging the storage devices)
+    using the per host (group) variables::
+
+     devices:
+       - /dev/disk/by-id/ata-fooXXXHDD
+       - /dev/disk/by-id/ata-barYYYHDD
 
      raw_journal_devices:
        - /dev/disk/by-id/ata-blahSSD
@@ -89,7 +129,8 @@ Mandatory and important settings:
   - network settings::
     
       public_network: 10.253.0.0/24
-      monitor_interface: eth0
+      cluster_network: 10.252
+      monitor_interface: eth1
 
     Every node has a single (virtual) NIC, hence no separate cluster network.
 
@@ -103,6 +144,15 @@ Mandatory and important settings:
   - tell ceph-ansible to *not* touch APT configuration::
 
       ceph_origin: 'distro'
+
+  - add a repository with custom ceph packages, add pinning rules::
+
+      ceph_apt_repo:
+        url: "deb http://asheplyakov.srt.mirantis.net/Public/repos/ceph {{ ceph_release }}-{{ os_release }} main"
+        label: "sa-{{ ceph_release }}-{{ os_release }}"
+        gpg_keyid: 69514C18
+        priority: 1050
+
 
   - ceph is picky about nodes' system time being out of sync. run *ntpdate*
     using the specified NTP server::
@@ -123,18 +173,8 @@ Mandatory and important settings:
 
       raw_multi_journal: true
 
-  - set the actual data and journal devices on a per node basis.
-    ``host_vars/saceph-osd1.vm.ceph.asheplyakov``::
-
-      devices:
-        - /dev/disk/by-id/virtio-OSD1_DATA
-        - /dev/disk/by-id/virtio-OSD2_DATA
-
-      raw_journal_devices:
-        - /dev/disk/by-id/virtio-OSD1_JOURNAL
-        - /dev/disk/by-id/virtio-OSD1_JOURNAL
-
-
+  - set the actual data and journal devices on a per node basis by
+    the inventory script (and can be overriden by host/group variables)
     Note: the drives should have a valid GPT with no paritions defined,
     otherwise ``ceph-ansible`` refuses to use the device
 
@@ -158,23 +198,8 @@ Preflight checks
 
 * Check if VMs are reachable via ssh::
 
-    $ cat hosts
-    [osds]
-    saceph-osd1.vm.ceph.asheplyakov
-    saceph-osd2.vm.ceph.asheplyakov
-    saceph-osd3.vm.ceph.asheplyakov
-    [mons]
-    saceph-mon.vm.ceph.asheplyakov
-    saceph-mon2.vm.ceph.asheplyakov
-    saceph-mon3.vm.ceph.asheplyakov
-    [clients]
-    saceph-adm.vm.ceph.asheplyakov
-    [rgws]
-    saceph-rgw.vm.ceph.asheplyakov
-
-
-    $ ansible -m ping -i hosts all
-    saceph-adm.vm.ceph.asheplyakov | SUCCESS => {
+    $ ansible -m ping -i ./maas_inventory.py all
+    saceph-adm.maas | SUCCESS => {
        "changed": false, 
        "ping": "pong"
     }
@@ -188,7 +213,7 @@ Deploy it
 command please make sure the inventory file (*hosts*) does **NOT** point to
 your production cluster::
 
-  ansible-playbook -i hosts site.yml
+  ansible-playbook -i ./maas_inventory.py site.yml
 
 
 Benchmark
@@ -197,5 +222,5 @@ Benchmark
 Create 32G rbd image named ``test${hostname}.img``, map it, create ext4 filesystem,
 mount it and write ``fio`` randwrite benchmark::
 
-  ansible -m shell -i hosts clients -a "/opt/rbd-test.sh"
+  ansible -m shell -i ./maas_inventory.py clients -a "/opt/rbd-test.sh"
 
