@@ -164,14 +164,6 @@ class Inventory(object):
         rq = requests.get(url, headers=self._auth())
         rq.raise_for_status()
         _nodes = json.loads(rq.text)
-        for node in _nodes:
-            unused_disks = [blk for blk in node['physicalblockdevice_set']
-                            if blk['used_for'] == 'Unused']
-            if len(unused_disks) <= 1:
-                continue
-            for blk in unused_disks:
-                print("%s: %s" % (node['hostname'],
-                                  json.dumps(blk, sort_keys=True, indent=2)))
         return _nodes
 
 
