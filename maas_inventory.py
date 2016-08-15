@@ -20,6 +20,8 @@ MAAS_TOKEN = None
 MAAS_DOMAIN = 'maas'
 OSD_DATA_TAG = 'ansible_osd_data'
 OSD_JOURNAL_TAG = 'ansible_osd_journal'
+CLIENT_NET = 'client_net'
+CLUSTER_NET = 'cluster_net'
 
 # must match ceph-ansible variables
 OSD_DATA_DEVICES_KEY = 'devices'
@@ -30,6 +32,8 @@ class Inventory(object):
     def __init__(self, maas_api_url, maas_token):
         self.maas_api = maas_api_url
         self.token = maas_token
+        self.public_net = CLIENT_NET
+        self.cluster_net = CLUSTER_NET
 
     def _auth(self):
         consumer_key, key, secret = self.token.split(':')
@@ -111,9 +115,13 @@ class Inventory(object):
             rq = requests.get(url, headers=self._auth())
             rq.raise_for_status()
             nodes = json.loads(rq.text)
+            group_vars = {
+                'ansible_user': 'ubuntu',
+            }
+            group_vars.update(self._nodes_ifaces_by_role(nodes, group_name))
             ret[group_name] = {
                 'hosts': [node['hostname'] for node in nodes],
-                'vars': {'ansible_user': 'ubuntu'},
+                'vars': group_vars,
             }
         return ret
 
@@ -145,6 +153,35 @@ class Inventory(object):
                      for link in iface['links']
                      if link.get('ip_address') is not None)
         return list(ips)
+
+    def _get_interfaces_by_fabric(self, node):
+        ret = {}
+        for iface in node['interface_set']:
+            for link in iface['links']:
+                fabric = link['subnet']['vlan']['fabric']
+                ret[fabric] = {
+                    'cidr': link['subnet']['cidr'],
+                    'name': iface['name'],
+                }
+        return ret
+
+    def _nodes_ifaces_by_role(self, nodes, nodes_role):
+        if len(nodes) == 0:
+            return {}
+        ifaces_by_role = self._get_interfaces_by_fabric(nodes[0])
+        if not self.public_net in ifaces_by_role:
+            return {}
+        if any(self._get_interfaces_by_fabric(node) != ifaces_by_role
+               for node in nodes):
+            return {}
+        ret = {
+            'public_network': ifaces_by_role[self.public_net]['cidr'],
+        }
+        if nodes_role == 'mons':
+            ret['monitor_interface'] = ifaces_by_role[self.public_net]['name']
+        if nodes_role == 'osds':
+            ret['cluster_network'] = ifaces_by_role[self.cluster_net]['cidr']
+        return ret
 
     def _update_node_ssh_host_keys(self, node):
         hostname = node['hostname']

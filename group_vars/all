@@ -12,10 +12,6 @@ pool_default_min_size: 2
 pool_default_pg_num: 128
 pool_default_pgp_num: 128
 
-monitor_interface: eth1
-public_network: 10.253.0.0/24
-cluster_network: 10.250.0.0/24
-
 # be compatible with in-kernel rbd client included in Linux 3.13.x
 ceph_conf_overrides:
   client:
@@ -24,6 +20,12 @@ ceph_conf_overrides:
 # be compatible with in-kernel rbd client included in Linux 3.13.x
 crush_tunables:
   chooseleaf_vary_r: 0
+
+# set by inventory script, can be overriden here:
+# monitor_interface: eth1
+# public_network: 10.253.0.0/24
+# cluster_network: 10.250.0.0/24
+
 
 ceph_origin: 'distro' # don't add any APT repos, use the exiting ones
 ceph_release: 'jewel'
