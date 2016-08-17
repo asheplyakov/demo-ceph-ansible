@@ -5,7 +5,6 @@ cephx: true # enable auth
 osd_objectstore: filestore
 osd_mkfs_type: xfs
 journal_size: 3072 # MB
-zap_block_devs: false
 
 pool_default_size: 3
 pool_default_min_size: 2

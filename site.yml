@@ -23,7 +23,7 @@
   - ceph-osd
   pre_tasks:
   - include: ./tasks/zapdisks.yml
-    when: zap_block_devs
+    when: "{{ zap_block_devs|default(False)|bool }}"
 
 - hosts: rgws
   become: True
