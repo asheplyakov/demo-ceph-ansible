@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
-# tag all nodes as OSDs
-# tag all unused storage as OSD data
+# tag nodes having >= 1 unused drive(s) as OSD
+# tag unused drives bigger than a given size as OSD data
+# tag unused drives less then a given size as OSD journal
 
 import os
 import requests
@@ -83,8 +84,10 @@ def main():
     parser.add_option('-j', '--journal-tag', dest='journal_tag')
     parser.add_option('-c', '--client-tag', dest='client_tag')
     parser.add_option('-T', '--data-size-threshold',
+                      help='minimal size of OSD data drive, GB',
                       dest='data_size_threshold', type=int, default=0)
     parser.add_option('-U', '--untag', dest='clear_tags',
+                      help="clear nodes' and drives' tags",
                       action='store_true', default=False)
     options, args = parser.parse_args()
     maas_client = MaasClient(host=options.maas_host, user=options.maas_user)
