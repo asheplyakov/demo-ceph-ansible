@@ -1,0 +1,19 @@
+---
+
+# sometimes ansible fails with empty yaml files, so define a variable here
+dummy:
+
+# Normally the inventory script sets the data and journal devices according
+# to the storage tags. One can override them here on a per host basis:
+
+# devices:
+#   - /dev/disk/by-id/ata-WDC_WD20EURS-63SPKY0_WD-WMC300967502
+#   - /dev/disk/by-id/ata-ST1000DM003-1CH162_S1DGTCYM
+
+# Note: the same drive is listed twice, there will be two journal
+# partitions (one per a drive specified above)
+
+# raw_journal_devices:
+#   - /dev/disk/by-id/ata-INTEL_SSDSC2BP240G4_BTJR529502MY240AGN
+#   - /dev/disk/by-id/ata-INTEL_SSDSC2BP240G4_BTJR529502MY240AGN
+
