@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -12,7 +13,7 @@ from math import ceil
 import oauth.oauth as oauth
 import requests
 
-from sshutils import get_ssh_host_key, update_ssh_known_hosts
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 MAAS_HOST = '10.40.0.2'
 MAAS_USER = 'root'
@@ -141,19 +142,6 @@ class Inventory(object):
         result.update(hostvars)
         return result
 
-    def _get_node_ips(self, node):
-        for iface in sorted(node['interface_set'], key=lambda x: x['name']):
-            for link in iface['links']:
-                ip = link.get('ip_address')
-                if ip is not None:
-                    print("{ifname}: {ip}".format(ip=ip,
-                                                  ifname=iface['name']))
-        ips = sorted(link['ip_address']
-                     for iface in node['interface_set']
-                     for link in iface['links']
-                     if link.get('ip_address') is not None)
-        return list(ips)
-
     def _get_interfaces_by_fabric(self, node):
         ret = {}
         for iface in node['interface_set']:
@@ -182,19 +170,6 @@ class Inventory(object):
         if nodes_role == 'osds':
             ret['cluster_network'] = ifaces_by_role[self.cluster_net]['cidr']
         return ret
-
-    def _update_node_ssh_host_keys(self, node):
-        hostname = node['hostname']
-        ips = self._get_node_ips(node)
-        ssh_key = get_ssh_host_key(ips, hostname)
-        update_ssh_known_hosts(ips, hostname, ssh_key=ssh_key)
-        return {hostname: ssh_key}
-
-    def update_ssh_keys(self):
-        ssh_keys = {}
-        for node in self.nodes():
-            ssh_keys.update(self._update_node_ssh_host_keys(node))
-        return ssh_keys
 
     def nodes(self):
         url = '%s/nodes/?op=list' % self.maas_api
@@ -239,7 +214,8 @@ def main(maas_host=MAAS_HOST, maas_token=None):
     elif args.host:
         data = inventory.host()
     elif args.ssh_keys:
-        data = inventory.update_ssh_keys()
+        from maas_tools.fetch_ssh_keys import update_ssh_keys
+        data = update_ssh_keys(maas_host=maas_host, maas_user=MAAS_USER)
     else:
         sys.exit(1)
     print(json.dumps(data, sort_keys=True, indent=2))
